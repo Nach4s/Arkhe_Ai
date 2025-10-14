@@ -1,9 +1,25 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from handlers import start, upload
 from config import BOT_TOKEN, LOG_LEVEL
+
+# ---------- Fake HTTP server (for Render port scan) ----------
+class HealthCheck(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+def run_server():
+    server = HTTPServer(('0.0.0.0', 10000), HealthCheck)
+    server.serve_forever()
+
+threading.Thread(target=run_server, daemon=True).start()
+# --------------------------------------------------------------
 
 # Configure logging
 logging.basicConfig(
@@ -16,21 +32,16 @@ logger = logging.getLogger(__name__)
 async def main():
     """Main function to start the bot."""
     logger.info("Starting Arkhe AI bot...")
-    
-    # Initialize bot
+
     bot = Bot(token=BOT_TOKEN)
-    
-    # Initialize dispatcher
     dp = Dispatcher()
-    
-    # Include routers
+
     dp.include_router(start.router)
     dp.include_router(upload.router)
-    
+
     logger.info("Bot is ready. Starting polling...")
-    
+
     try:
-        # Start polling
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await bot.session.close()
