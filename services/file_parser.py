@@ -1,3 +1,4 @@
+import os
 import fitz  # PyMuPDF
 from pptx import Presentation
 
@@ -12,8 +13,17 @@ def extract_text_from_file(file_path: str) -> str:
         Extracted text as string
         
     Raises:
-        ValueError: If file format is not supported
+        ValueError: If file format is not supported or file doesn't exist
     """
+    # Check if file exists
+    if not os.path.exists(file_path):
+        raise ValueError(f"Файл не найден: {file_path}")
+    
+    # Check file size
+    file_size = os.path.getsize(file_path)
+    if file_size == 0:
+        raise ValueError("Файл пустой")
+    
     if file_path.lower().endswith(".pdf"):
         return extract_text_from_pdf(file_path)
     elif file_path.lower().endswith(".pptx"):
