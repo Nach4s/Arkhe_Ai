@@ -1,11 +1,8 @@
 from openai import AsyncOpenAI
-from config import GROQ_API_KEY
+from config import OPENAI_API_KEY
 
-# Groq использует OpenAI-совместимый API
-client = AsyncOpenAI(
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1"
-)
+# OpenAI API
+client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 ANALYSIS_PROMPT = """
 Отвечай строго на том языке который в презентации , если презентация на русском отвечай только на русском , если на английском отвечай только на английском .
@@ -42,8 +39,9 @@ ANALYSIS_PROMPT = """
 	•	Рынок и партнёрства: ⭐⭐☆☆☆
 	•	Продажи / Потенциал роста: ⭐⭐☆☆☆
 
-Финанальный обзац🔥 Итоговая оценка (вместо суммы — усреднённый рейтинг):
-Пример: 3.2⭐ из 5 — ниже среднего, требуется доработка. 
+⚡ В конце выдай:
+- **Overall рейтинг** — усреднённый по всем критериям и Бёркусу, например: 3.2⭐ из 5  
+- **Краткий вывод**: чётко, по фактам, без воды, почему проект слабый или перспективный  
 
 ⸻
 
@@ -67,7 +65,7 @@ ANALYSIS_PROMPT = """
 
 async def analyze_pitch(pitch_text: str) -> str:
     """
-    Analyze startup pitch using Groq API (LLaMA 3).
+    Analyze startup pitch using OpenAI API.
     
     Args:
         pitch_text: Extracted text from presentation
@@ -85,7 +83,7 @@ async def analyze_pitch(pitch_text: str) -> str:
     
     try:
         response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -113,4 +111,4 @@ async def analyze_pitch(pitch_text: str) -> str:
         return formatted_result
         
     except Exception as e:
-        raise Exception(f"Ошибка при обращении к Groq API: {str(e)}")
+        raise Exception(f"Ошибка при обращении к OpenAI API: {str(e)}")
