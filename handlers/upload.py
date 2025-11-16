@@ -63,18 +63,41 @@ async def handle_file(message: types.Message):
         try:
             text = extract_text_from_file(file_path)
         except Exception as e:
+            error_message = str(e)
+            # Split long error messages (Telegram limit is 4096 characters)
+            if len(error_message) > 4000:
+                # Split by newlines if possible
+                parts = error_message.split('\n\n')
+                current_part = "⚠️ Ошибка при чтении файла:\n\n"
+                for part in parts:
+                    if len(current_part) + len(part) + 2 > 4000:
+                        await message.answer(current_part)
+                        current_part = part + "\n\n"
+                    else:
+                        current_part += part + "\n\n"
+                if current_part.strip():
+                    await message.answer(current_part)
+            else:
+                await message.answer(
+                    f"⚠️ Ошибка при чтении файла:\n\n{error_message}"
+                )
+            return
+        
+        # Validate extracted text
+        if not text or len(text.strip()) < 50:
             await message.answer(
-                f"⚠️ Ошибка при чтении файла: {str(e)}\n\n"
-                "Убедитесь, что файл не повреждён и имеет правильный формат."
+                "⚠️ Не удалось извлечь достаточно текста из файла.\n\n"
+                "Возможные причины:\n"
+                "• Презентация содержит только изображения (текст в картинках не извлекается)\n"
+                "• Файл повреждён или имеет нестандартный формат\n"
+                "• Текст слишком короткий для анализа\n\n"
+                "Попробуйте загрузить файл с текстовым содержимым."
             )
             return
         
-        if not text or len(text.strip()) < 50:
-            await message.answer(
-                "⚠️ Не удалось извлечь достаточно текста из файла. "
-                "Убедитесь, что презентация содержит текстовую информацию."
-            )
-            return
+        # Log extracted text preview for debugging (first 500 chars)
+        print(f"[DEBUG] Извлечено текста: {len(text)} символов")
+        print(f"[DEBUG] Превью текста (первые 500 символов):\n{text[:500]}")
         
         # Analyze with AI
         try:
