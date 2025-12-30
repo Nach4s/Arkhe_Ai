@@ -1,8 +1,7 @@
 import asyncio
 import logging
 import os
-from aiogram import Bot, Dispatcher
-from aiogram.webhook.aiohttp import SimpleRequestHandler, setup_application
+from aiogram import Bot, Dispatcher, types
 from aiohttp import web
 
 from handlers import start, upload
@@ -89,6 +88,32 @@ async def start_polling_mode(bot: Bot, dp: Dispatcher):
         await bot.session.close()
 
 
+async def handle_webhook(request: web.Request, bot: Bot, dp: Dispatcher):
+    """Обработчик webhook запросов от Telegram."""
+    try:
+        # Проверка secret token, если он установлен
+        if WEBHOOK_SECRET:
+            secret_header = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+            if secret_header != WEBHOOK_SECRET:
+                logger.warning("Invalid secret token in webhook request")
+                return web.Response(status=403, text="Forbidden")
+        
+        # Получаем данные обновления
+        update_data = await request.json()
+        
+        # Создаем объект Update
+        update = types.Update(**update_data)
+        
+        # Обрабатываем обновление через dispatcher
+        # Используем feed_update для aiogram 3.10
+        await dp.feed_update(bot, update)
+        
+        return web.Response(text="OK")
+    except Exception as e:
+        logger.error(f"Error processing webhook update: {e}", exc_info=True)
+        return web.Response(status=500, text="Internal Server Error")
+
+
 async def start_webhook_mode(bot: Bot, dp: Dispatcher):
     """Запуск бота в режиме webhook."""
     logger.info("Starting bot in WEBHOOK mode...")
@@ -100,14 +125,10 @@ async def start_webhook_mode(bot: Bot, dp: Dispatcher):
     app = web.Application()
     
     # Настраиваем обработчик webhook
-    webhook_requests_handler = SimpleRequestHandler(
-        dispatcher=dp,
-        bot=bot,
-        secret_token=WEBHOOK_SECRET if WEBHOOK_SECRET else None,
-    )
-    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+    async def webhook_handler(request: web.Request):
+        return await handle_webhook(request, bot, dp)
     
-    setup_application(app, dp, bot=bot)
+    app.router.add_post(WEBHOOK_PATH, webhook_handler)
     
     # Получаем порт из окружения или используем 8080 по умолчанию
     port = int(os.getenv("PORT", "8080"))
