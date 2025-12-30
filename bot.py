@@ -7,6 +7,20 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from handlers import start, upload
 from config import BOT_TOKEN, LOG_LEVEL
 
+# Настройка логгера
+logger = logging.getLogger("arkheai")
+logger.setLevel(logging.INFO)
+
+# Настройка вывода в консоль
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Форматирование логов
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+
+logger.addHandler(console_handler)
+
 
 
 
