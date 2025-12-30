@@ -8,10 +8,6 @@ from handlers import start, upload
 from config import BOT_TOKEN, LOG_LEVEL
 
 
-async def handler(event: dict, context):
-
-    return {"statusCode": 200, "body": ""}
-
 
 
 async def main():
