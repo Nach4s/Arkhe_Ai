@@ -1,11 +1,13 @@
 import os
 import re
 import uuid
+import logging
 from aiogram import Router, types
 from services.file_parser import extract_text_from_file
 from services.ai_analyzer import analyze_pitch
 
 router = Router()
+logger = logging.getLogger("arkheai")
 
 def sanitize_filename(filename: str) -> str:
     """
@@ -96,8 +98,8 @@ async def handle_file(message: types.Message):
             return
         
         # Log extracted text preview for debugging (first 500 chars)
-        print(f"[DEBUG] Извлечено текста: {len(text)} символов")
-        print(f"[DEBUG] Превью текста (первые 500 символов):\n{text[:500]}")
+        logger.info(f"Извлечено текста: {len(text)} символов")
+        logger.debug(f"Превью текста (первые 500 символов):\n{text[:500]}")
         
         # Analyze with AI
         try:
