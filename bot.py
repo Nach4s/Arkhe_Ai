@@ -152,6 +152,11 @@ async def start_webhook_mode(bot: Bot, dp: Dispatcher):
 async def main():
     """Main function to start the bot."""
     logger.info("Starting Arkhe AI bot...")
+    
+    # Проверка обязательных переменных окружения
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN is not set. Please set BOT_TOKEN environment variable.")
+    
     logger.info(f"BOT_TOKEN is set: {bool(BOT_TOKEN)}")
     logger.info(f"USE_WEBHOOK: {USE_WEBHOOK}")
     

@@ -2,9 +2,6 @@ import re
 from openai import AsyncOpenAI
 from config import OPENAI_API_KEY
 
-# OpenAI API
-client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-
 ANALYSIS_PROMPT = """
 Отвечай строго на языке, который используется в презентации:
 - если презентация на русском — только русский,
@@ -155,6 +152,10 @@ async def analyze_pitch(pitch_text: str) -> str:
     Returns:
         Analysis result as formatted string
     """
+    # Проверка наличия API ключа
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is not set. Please set OPENAI_API_KEY environment variable.")
+    
     # Clean and prepare text (increased limit for better context)
     # gpt-4o-mini supports up to 128k tokens, so we can use more text
     cleaned_text = clean_and_prepare_text(pitch_text, max_length=50000)
@@ -163,6 +164,9 @@ async def analyze_pitch(pitch_text: str) -> str:
         raise ValueError("Текст слишком короткий для анализа. Убедитесь, что презентация содержит достаточно информации.")
     
     prompt = ANALYSIS_PROMPT.format(pitch_text=cleaned_text)
+    
+    # Создаем клиент только при использовании
+    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
     
     try:
         response = await client.chat.completions.create(
