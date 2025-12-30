@@ -7,26 +7,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from handlers import start, upload
 from config import BOT_TOKEN, LOG_LEVEL
 
-# ---------- Fake HTTP server (for Render port scan) ----------
-class HealthCheck(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"ok")
 
-def run_server():
-    server = HTTPServer(('0.0.0.0', 10000), HealthCheck)
-    server.serve_forever()
+async def handler(event: dict, context):
 
-threading.Thread(target=run_server, daemon=True).start()
-# --------------------------------------------------------------
+    return {"statusCode": 200, "body": ""}
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 
 async def main():
