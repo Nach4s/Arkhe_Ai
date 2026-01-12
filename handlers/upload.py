@@ -2,8 +2,11 @@ import os
 import re
 import uuid
 import logging
-from aiogram import Router, types
+from aiogram import Router, types, F
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from services.file_parser import extract_text_from_file
+from services.debates_service import init_debates_session, clear_debates_session, get_debates_session
 from services.ai_analyzer import analyze_pitch
 
 router = Router()
@@ -58,7 +61,7 @@ async def handle_file(message: types.Message):
             return
         
         await message.answer(
-            "📄 Презентация получена! Анализирую, это может занять немного времени... ⏳"
+            "📄 Презентация получена! Извлекаю текст..."
         )
         
         # Extract text from file
@@ -101,23 +104,34 @@ async def handle_file(message: types.Message):
         logger.info(f"Извлечено текста: {len(text)} символов")
         logger.debug(f"Превью текста (первые 500 символов):\n{text[:500]}")
         
-        # Analyze with AI
+        # Инициализируем сессию дебатов с загруженной презентацией
+        user_id = message.from_user.id
         try:
-            result = await analyze_pitch(text)
-        except Exception as e:
+            # Очищаем предыдущую сессию, если была
+            clear_debates_session(user_id)
+            # Инициализируем новую сессию
+            init_debates_session(user_id, text)
+            logger.info(f"Сессия дебатов инициализирована для пользователя {user_id}")
+            
+            # Предлагаем выбрать режим работы
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    types.InlineKeyboardButton(text="📊 Анализ", callback_data="analyze"),
+                    types.InlineKeyboardButton(text="💬 Дебаты", callback_data="debates")
+                ]
+            ])
+            
             await message.answer(
-                f"⚠️ Ошибка при анализе AI: {str(e)}\n\n"
-                "Проверьте настройки API или попробуйте позже."
+                "✅ Презентация загружена!\n\n"
+                "Выберите режим работы:",
+                reply_markup=keyboard
             )
-            return
-        
-        # Split long messages if needed (Telegram limit is 4096 characters)
-        if len(result) > 4000:
-            parts = [result[i:i+4000] for i in range(0, len(result), 4000)]
-            for part in parts:
-                await message.answer(part)
-        else:
-            await message.answer(result)
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации сессии дебатов: {e}", exc_info=True)
+            await message.answer(
+                f"⚠️ Ошибка при обработке презентации: {str(e)}\n\n"
+                "Попробуйте загрузить файл снова."
+            )
             
     except Exception as e:
         await message.answer(
@@ -131,3 +145,107 @@ async def handle_file(message: types.Message):
                 os.remove(file_path)
             except Exception:
                 pass  # Ignore cleanup errors
+
+
+@router.callback_query(F.data == "analyze")
+async def handle_analyze_callback(callback: types.CallbackQuery):
+    """Обработчик кнопки 'Анализ'."""
+    await process_analyze(callback.from_user.id, callback.message, callback.answer, callback.message.edit_reply_markup)
+
+
+@router.message(Command("analyze"))
+async def analyze_cmd(message: types.Message):
+    """Обработчик команды /analyze."""
+    user_id = message.from_user.id
+    
+    # Получаем сохранённую презентацию
+    session = get_debates_session(user_id)
+    
+    if not session or not session.get("presentation_text"):
+        await message.answer(
+            "📄 Презентация не найдена.\n\n"
+            "Загрузите презентацию (PDF или PPTX), затем используйте /analyze для анализа."
+        )
+        return
+    
+    async def dummy_answer(*args, **kwargs):
+        pass
+    
+    async def dummy_edit(*args, **kwargs):
+        pass
+    
+    await process_analyze(user_id, message, dummy_answer, dummy_edit)
+
+
+async def process_analyze(user_id: int, message: types.Message, answer_callback, edit_callback):
+    """Общая функция для обработки анализа."""
+    # Получаем сохранённую презентацию
+    session = get_debates_session(user_id)
+    
+    if not session or not session.get("presentation_text"):
+        await answer_callback("Презентация не найдена. Загрузите файл снова.", show_alert=True)
+        return
+    
+    await answer_callback("Запускаю анализ...")
+    try:
+        await edit_callback(reply_markup=None)
+    except:
+        pass  # Если это не callback, просто игнорируем
+    
+    await message.answer("📊 Анализирую презентацию, это может занять немного времени... ⏳")
+    
+    try:
+        presentation_text = session["presentation_text"]
+        result = await analyze_pitch(presentation_text)
+        
+        # Split long messages if needed (Telegram limit is 4096 characters)
+        if len(result) > 4000:
+            parts = [result[i:i+4000] for i in range(0, len(result), 4000)]
+            for part in parts:
+                await message.answer(part)
+        else:
+            await message.answer(result)
+            
+    except Exception as e:
+        logger.error(f"Ошибка при анализе: {e}", exc_info=True)
+        await message.answer(
+            f"⚠️ Ошибка при анализе: {str(e)}\n\n"
+            "Проверьте настройки API или попробуйте позже."
+        )
+
+
+@router.callback_query(F.data == "debates")
+async def handle_debates_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Обработчик кнопки 'Дебаты'."""
+    user_id = callback.from_user.id
+    
+    # Получаем сохранённую презентацию
+    session = get_debates_session(user_id)
+    
+    if not session or not session.get("presentation_text"):
+        await callback.answer("Презентация не найдена. Загрузите файл снова.", show_alert=True)
+        return
+    
+    await callback.answer("Запускаю дебаты...")
+    await callback.message.edit_reply_markup(reply_markup=None)
+    
+    # Импортируем здесь, чтобы избежать циклических импортов
+    from services.debates_service import ask_next_question
+    from handlers.debates import DebatesStates
+    
+    await callback.message.answer("Запускаю режим дебатов...")
+    
+    try:
+        # Задаём первый вопрос
+        first_question = await ask_next_question(user_id)
+        await callback.message.answer(first_question)
+        
+        # Переходим в состояние ожидания ответа
+        await state.set_state(DebatesStates.waiting_for_answer)
+    except Exception as e:
+        logger.error(f"Ошибка при запуске дебатов: {e}", exc_info=True)
+        await callback.message.answer(
+            f"⚠️ Ошибка при запуске дебатов: {str(e)}\n\n"
+            "Попробуйте использовать команду /debates"
+        )
+        await state.clear()

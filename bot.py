@@ -2,9 +2,10 @@ import asyncio
 import logging
 import os
 from aiogram import Bot, Dispatcher, types
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
-from handlers import start, upload
+from handlers import start, upload, debates
 from config import BOT_TOKEN, LOG_LEVEL
 
 # Настройка логгера
@@ -165,10 +166,12 @@ async def main():
         logger.info(f"WEBHOOK_PATH: {WEBHOOK_PATH}")
 
     bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher()
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
 
     dp.include_router(start.router)
     dp.include_router(upload.router)
+    dp.include_router(debates.router)
 
     try:
         if USE_WEBHOOK:
